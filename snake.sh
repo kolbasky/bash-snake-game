@@ -2,126 +2,211 @@
 shopt -s extglob 2> /dev/null 
 setopt extended_glob 2> /dev/null 
 setopt KSH_ARRAYS 2> /dev/null 
+trap "tput cnorm; tput sgr0; stty echo; tput rmcup; exit 1" SIGINT SIGTERM EXIT
+stty -echo
+tput smcup
 tput civis
-trap "tput cnorm; tput sgr0; clear; exit 1" SIGINT SIGTERM EXIT
-
-if [[ -z $1 ]];then blocks=0; else blocks=1 ;fi
 
 bound_color=3
 snake_color=2
 appale_color=1
 score_color=6
 clock_color=8
-
-
-if [[ $blocks -eq 1 ]];then
-    tputseta="setab"
-else
-    tputseta="setaf"
+snake_head="@"
+snake_tail="0"
+apple="@"
+fps_step=5
+width=`tput cols`
+height=`tput lines`
+if [[ -z $1 ]];then 
+    blocks=1; tputseta="setab"; 
+else 
+    blocks=0; tputseta="setaf" ;
 fi
+
+welcome() {
+    tput sgr0
+    line="Snake game"
+    l=${#line}
+    tput cup $((height / 2 - 2)) $((width / 2 - $l / 2))
+    printf -- "$(tput smso)$(tput setaf $bound_color)$line$(tput sgr0)"
+    line="WASD/Arrows to change direction"
+    l=${#line}
+    tput cup $((height / 2)) $((width / 2 - $l / 2))
+    printf -- "$(tput setaf $bound_color)$line$(tput sgr0)"
+    line="-/+ to change speed"
+    l=${#line}
+    tput cup $((height / 2 + 1)) $((width / 2 - $l / 2))
+    printf -- "$(tput setaf $bound_color)$line$(tput sgr0)"
+    line="P to pause"
+    l=${#line}
+    tput cup $((height / 2 + 2)) $((width / 2 - $l / 2))
+    printf -- "$(tput setaf $bound_color)$line$(tput sgr0)"
+    read -s -n 1
+}
 
 die() {
     tput sgr0
-    clear
+    # enable gore :-)
+    if [[ ${pos[0]} -eq 0 ]];then
+        tput cup $((${pos[1]}+1)) $((${pos[0]}))
+        printf -- "$(tput $tputseta 1)$(tput setaf 1)#\\"
+        tput cup $((${pos[1]}-1)) $((${pos[0]}))
+        printf -- "$(tput $tputseta 1)$(tput setaf 1)#/"
+    fi
+    if [[ ${pos[0]} -eq $((width-1)) ]];then
+        tput cup $((${pos[1]}+1)) $((${pos[0]}-1))
+        printf -- "$(tput $tputseta 1)$(tput setaf 1)/#"
+        tput cup $((${pos[1]}-1)) $((${pos[0]}-1))
+        printf -- "$(tput $tputseta 1)$(tput setaf 1)\\#"
+    fi
+    if [[ ${pos[1]} -eq 1 ]];then
+        tput cup $((${pos[1]})) $((${pos[0]}-1))
+        printf -- "$(tput $tputseta 1)$(tput setaf 1)#@#"
+        tput cup $((${pos[1]}+1)) $((${pos[0]}+1))
+        printf -- "$(tput $tputseta 1)$(tput setaf 1)\\"
+        tput cup $((${pos[1]}+1)) $((${pos[0]}-1))
+        printf -- "$(tput $tputseta 1)$(tput setaf 1)/"
+    fi
+    if [[ ${pos[1]} -eq $((height-1)) ]];then
+        tput cup $((${pos[1]}1)) $((${pos[0]}-1))
+        printf -- "$(tput $tputseta 1)$(tput setaf 1)#\\#"
+        tput cup $((${pos[1]}-1)) $((${pos[0]}+1))
+        printf -- "$(tput $tputseta 1)$(tput setaf 1)/"
+        tput cup $((${pos[1]}-1)) $((${pos[0]}-1))
+        printf -- "$(tput $tputseta 1)$(tput setaf 1)\\"
+    fi
+    tput cup ${pos[1]} ${pos[0]}
+    printf -- "$(tput $tputseta 1)$(tput setaf 1)@$(tput sgr0)"
     game_over="GAME OVER!"
     l=${#game_over}
-    tput cup $((heigth / 2)) $((width / 2 - $l / 2))
-    printf -- "$(tput setaf 1)$game_over"
+    tput cup $((height / 2 - 2)) $((width / 2 - $l / 2))
+    printf -- "$(tput blink)$(tput setaf 1)$game_over$(tput sgr0)"
     result="Score: $score"
     l=${#result}
-    tput cup $((heigth / 2 + 1)) $((width / 2 - $l / 2))
-    printf -- "$(tput setaf 1)$result"
-    read
+    tput cup $((height / 2 - 1)) $((width / 2 - $l / 2))
+    printf -- "$(tput blink)$(tput setaf 1)$result$(tput sgr0)"
+    result="Press R to restart, Q to quit"
+    l=${#result}
+    tput cup $((height / 2 + 1)) $((width / 2 - $l / 2))
+    printf -- "$(tput blink)$(tput setaf 1)$result$(tput sgr0)"
+    while true; do
+        read -n 1 -s key
+        if [[ ${key,,} == "r" ]] || [[ ${key,,} == "к" ]]; then
+            key=""
+            main
+        elif [[ ${key,,} == "q" ]] || [[ ${key,,} == "й" ]]; then
+            exit 0
+        fi
+    done
     main
-}
-
-hide_input() {
-        tput cup $heigth 0
-	    printf -- "$(tput $tputseta $bound_color)$(tput setaf $bound_color)"
 }
 
 draw_boundaries() {
     tput sgr0
+    tput civis
     width=`tput cols`
-    heigth=`tput lines`
+    height=`tput lines`
     i=0
     clear
     while [[ $i -le $width ]];do
         tput cup 1 $i
         printf -- "$(tput $tputseta $bound_color)$(tput setaf $bound_color)#"
-        tput cup $heigth $i
+        tput cup $height $i
         printf -- "$(tput $tputseta $bound_color)$(tput setaf $bound_color)#"
         i=$((i+1))
     done
     i=1
-    while [[ $i -le $heigth ]];do
+    while [[ $i -le $height ]];do
         tput cup $i 0
         printf -- "$(tput $tputseta $bound_color)$(tput setaf $bound_color)#"
         tput cup $i $width
         printf -- "$(tput $tputseta $bound_color)$(tput setaf $bound_color)#"
         i=$((i+1))
     done
-    hide_input
-    tput sgr0
 }
 
 read_key() {
-    read -t 0.001 -s -n 1 key 2> /dev/null || read -t 0.001 -s -k 1 key 2> /dev/null
-    if [[ ${key:-0} == "w" ]];then 
+    escape_char=$(printf "\u1b")
+    read -t 0.001 -r -s -n 1 key 2> /dev/null || read -r -t 0.001 -s -k 1 key 2> /dev/null
+    if [[ $key == $escape_char ]]; then
+        read -t 0.001 -r -s -n 2 key_arrow 2> /dev/null || read -r -t 0.001 -s -k 2 key_arrow 2> /dev/null
+    fi
+    #read -t 0.001 -r -s
+    if [[ ${key,,} == "w" ]] || [[ ${key,,} == "ц" ]] || [[ ${key_arrow} == '[A' ]];then 
         if [[ yspeed -ne 1 ]]; then
             yspeed=-1; xspeed=0;
         fi
-    elif [[ ${key:-0} == "a" ]];then
+    elif [[ ${key,,} == "a" ]] || [[ ${key,,} == "ф" ]] || [[ ${key_arrow} == '[D' ]];then
         if [[ xspeed -ne 1 ]]; then
             xspeed=-1; yspeed=0;
         fi
-    elif [[ ${key:-0} == "s" ]];then 
+    elif [[ ${key,,} == "s" ]] || [[ ${key,,} == "ы" ]] || [[ ${key_arrow} == '[B' ]];then 
         if [[ yspeed -ne -1 ]]; then
             yspeed=1; xspeed=0;
         fi
-    elif [[ ${key:-0} == "d" ]];then 
+    elif [[ ${key,,} == "d" ]] || [[ ${key,,} == "в" ]] || [[ ${key_arrow} == '[C' ]];then 
         if [[ xspeed -ne -1 ]]; then
             xspeed=1; yspeed=0;
         fi
     elif [[ ${key:-0} == "-" ]];then 
-        fps=$((fps - 2));
+        fps=$((fps - $fps_step));
     elif [[ ${key:-0} == "=" ]];then 
-        fps=$((fps + 2));
+        fps=$((fps + $fps_step));
     elif [[ ${key:-0} == "+" ]];then 
-        fps=$((fps + 2));
-    elif [[ ${key:-0} == "r" ]];then 
+        fps=$((fps + $fps_step));
+    elif [[ ${key,,} == "r" ]] || [[ ${key,,} == "к" ]];then 
         draw_boundaries
+    elif [[ ${key,,} == "p" ]] || [[ ${key,,} == "з" ]];then 
+        read -s -n 1
+    fi 
+    key="" 
+    key_arrow=""
+    if [[ $fps -le 0 ]]; then fps=5; fi 
+    if [[ $fps -gt 200 ]]; then fps=200; fi 
+    if [[ $xspeed -eq 0 ]]; then
+        sleep=`printf "scale = 3; 1 / $fps * 2\n" | bc`
+    else
+        sleep=`printf "scale = 3; 1 / $fps\n" | bc`
     fi
-    key=""
-    if [[ $fps -le 0 ]]; then fps=2; fi
-    if [[ $fps -gt 125 ]]; then fps=125; fi
-    sleep=`printf "scale = 3; 1 / $fps\n" | bc`
-    hide_input
 }
 
 draw_screen() {
     tput sgr0
+    if [[ $width -ne `tput cols` ]] || [[ $height -ne `tput lines` ]]; then
+        draw_boundaries
+    fi
     i=0
     last=$((${#prevpos[@]}-1))
     tput cup ${prevpos[$last]} ${prevpos[$((last-1))]}
-    printf -- " "
+    printf -- "$(tput sgr0) "
     while [[ $i -lt ${#pos[@]} ]]; do
         tput cup $((${pos[$((i+1))]})) ${pos[$i]}
         if [[ $i -eq 0 ]]; then
-            printf -- "$(tput $tputseta $snake_color)$(tput setaf $snake_color)@$(tput sgr0)"
-        else 
-            printf -- "$(tput $tputseta $snake_color)$(tput setaf $snake_color)0$(tput sgr0)"
+            if [[ $blocks == "1" ]]; then
+                if [[ $xspeed -eq 0 ]];then
+                    printf -- "$(tput $tputseta $snake_color)$(tput setaf 0)⠒$(tput sgr0)"
+                elif [[ $yspeed -eq 0 ]];then
+                    printf -- "$(tput $tputseta $snake_color)$(tput setaf 0):$(tput sgr0)"
+                fi
+            else
+                printf -- "$(tput setaf $snake_color)$snake_head$(tput sgr0)"
+            fi
+        else
+            if [[ $(($i % 4)) -eq 2 ]] && [[ $blocks == "1" ]]; then
+                printf -- "$(tput $tputseta $snake_color)$(tput setaf 3)$snake_tail$(tput sgr0)"
+            # elif [[ $(($i % 4)) -eq 2 ]] && [[ $blocks == "0" ]]; then
+            #     printf -- "$(tput $tputseta $snake_color)$(tput setaf $snake_color)$(tput blink)$snake_tail$(tput sgr0)"
+            else
+                printf -- "$(tput $tputseta $snake_color)$(tput setaf $snake_color)$snake_tail$(tput sgr0)"
+            fi
         fi
         i=$((i+2))
-        hide_input
     done
-    tput cup $a_ypos $a_xpos
-    printf -- "$(tput setaf $appale_color)$(tput $tputseta $appale_color)O$(tput sgr0)"
-    tput cup 0 0
-    tput el
+    tput cup $a_ypos $a_xpos && printf -- "$(tput setaf $appale_color)$(tput $tputseta $appale_color)$apple$(tput sgr0)"
     score_board="Score: $score"
-    score_board_len=${#score_board}
-    tput cup 0 $((width - $score_board_len))
+    l=${#score_board}
+    tput cup 0 $(($width / 2 - $l / 2))
     if [[ $blocks -eq 1 ]];then
         printf -- "$(tput setaf $score_color)$(tput smso)$score_board$(tput sgr0)"
     else
@@ -129,11 +214,18 @@ draw_screen() {
     fi
     tput cup 0 0
     if [[ $blocks -eq 1 ]];then
-        printf -- "$(tput setaf $clock_color)$(tput smso)`date +%H:%M`$(tput sgr0)"
+        printf -- "$(tput setaf $clock_color)$(tput smso)`date +%H:%M:%S`$(tput sgr0)"
     else
-        printf -- "$(tput setaf $clock_color)`date +%H:%M`$(tput sgr0)"
+        printf -- "$(tput setaf $clock_color)`date +%H:%M:%S`$(tput sgr0)"
     fi
-    hide_input
+    speedometer="Speed: ${fps}"
+    l=${#speedometer}
+    tput cup 0 $((width - $l))
+    if [[ $blocks -eq 1 ]];then
+        printf -- "$(tput setaf $clock_color)$(tput smso)$speedometer$(tput sgr0)"
+    else
+        printf -- "$(tput setaf $clock_color)$speedometer$(tput sgr0)"
+    fi
 }
 
 move_snake() {
@@ -149,7 +241,6 @@ move_snake() {
         fi
         i=$((i+2))
     done
-    hide_input
 }
 
 eat_apple() {
@@ -157,20 +248,29 @@ eat_apple() {
         pos+=(${pos[$(($last-1))]})
         pos+=(${pos[$last]})
         a_xpos=$((1 + $RANDOM % ($width - 2) ))
-        a_ypos=$((2 + $RANDOM % ($heigth - 3) ))
+        a_ypos=$((2 + $RANDOM % ($height - 3) ))
         score=$((score+1))
         if [[ $((score % 5)) -eq 0 ]];then
-            fps=$((fps+4))
+            fps=$((fps+10))
         fi
+        i=2
+        while [[ $i -lt ${#pos[@]} ]];do
+            if [[ ${pos[$i]} -eq a_xpos ]] && [[ ${pos[$((i+1))]} -eq a_ypos ]];then
+                a_xpos=$((1 + $RANDOM % ($width - 2) ))
+                a_ypos=$((2 + $RANDOM % ($height - 3) ))
+                i=2
+            else
+                i=$((i+2))
+            fi
+        done
     fi
-    hide_input
 }
 
 detect_collision() {
     if [[ ${pos[0]} -eq 0 ]] ||
     [[ ${pos[0]} -eq $((width-1)) ]] ||
     [[ ${pos[1]} -eq 1 ]] ||
-    [[ ${pos[1]} -eq $((heigth-1)) ]]
+    [[ ${pos[1]} -eq $((height-1)) ]]
     then
          die
     fi
@@ -182,32 +282,30 @@ detect_collision() {
             die
         fi
         i=$((i+2))
-        tput cup $heigth 0
-	    hide_input
     done
-    hide_input
 }
 
 main() {
+    tput civis
     width=`tput cols`
-    heigth=`tput lines`
+    height=`tput lines`
     xspeed=1
     yspeed=0
-    pos=($((width / 4)) $((heigth / 2)))
-    fps=14
+    pos=($((width / 4)) $((height / 2)))
+    fps=10
     sleep=`printf "scale = 3; 1 / $fps\n" | bc`
     a_xpos=$((1 + $RANDOM % ($width - 2) ))
-    a_ypos=$((2 + $RANDOM % ($heigth - 3) ))
+    a_ypos=$((2 + $RANDOM % ($height - 3) ))
     score=0
     draw_boundaries
     while true; do
         read_key
         move_snake
-        draw_screen
         detect_collision
         eat_apple
-        sleep $sleep
+        draw_screen
+        sleep $sleep  
     done
 }
-
+welcome
 main
