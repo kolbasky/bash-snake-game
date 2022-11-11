@@ -9,3 +9,8 @@ A simple snake game written in bash.<br>
 
 Pass any parameter to use symbols instead of colored blocks<br>
 ![snake_ch](https://user-images.githubusercontent.com/42576088/199381402-7fdc323f-0ba0-4f05-a870-dfd4a2143b6e.gif)
+
+# Grab&Run
+```
+bash <(curl -s https://raw.githubusercontent.com/kolbasky/bash-snake/main/snake.sh)
+```
